@@ -1,0 +1,103 @@
+{
+    "mockup1": {
+      "default_effects_chain": [
+        { "effect": "corner_pin", "params": { "use_mask": true } },
+        { "effect": "reflections", "params": { "opacity": 0.5 } }
+      ],
+      "scenes": [
+        {
+          "scene_id": "scene1",
+          "assets": {
+            "background": "assets/mockup1/scene1/background.mov",
+            "reflections": "assets/mockup1/scene1/reflections.mov",
+            "mask": "assets/mockup1/scene1/mask.mov",
+            "corner_pin_data": "assets/mockup1/scene1/corner_pin_data.json"
+          },
+          "default_duration_frames": 88,
+          "effects_chain": [
+            { "effect": "corner_pin", "params": { "use_mask": true } },
+            { "effect": "reflections", "params": { "opacity": 0.5 } }
+          ]
+        },
+        {
+          "scene_id": "scene2",
+          "assets": {
+            "background": "assets/mockup1/scene2/background.mov",
+            "reflections": "assets/mockup1/scene2/reflections.mov",
+            "mask": "assets/mockup1/scene2/mask.mov",
+            "corner_pin_data": "assets/mockup1/scene2/corner_pin_data.json"
+          },
+          "default_duration_frames": 88,
+          "effects_chain": [
+            { "effect": "corner_pin", "params": { "use_mask": true } },
+            { "effect": "reflections", "params": { "opacity": 0.5 } }
+          ]
+        },
+        {
+          "scene_id": "scene3",
+          "assets": {
+            "background": "assets/mockup1/scene3/background.mov",
+            "reflections": "assets/mockup1/scene3/reflections.mov",
+            "mask": "assets/mockup1/scene3/mask.mov",
+            "corner_pin_data": "assets/mockup1/scene3/corner_pin_data.json"
+          },
+          "default_duration_frames": 88,
+          "effects_chain": [
+            { "effect": "corner_pin", "params": { "use_mask": true } },
+            { "effect": "reflections", "params": { "opacity": 0.5 } }
+          ]
+        }
+      ]
+    },
+    "mockup2": {
+      "default_effects_chain": [
+        { "effect": "corner_pin", "params": { "use_mask": true } },
+        { "effect": "reflections", "params": { "opacity": 0.5 } }
+      ],
+      "scenes": [
+        {
+          "scene_id": "scene1",
+          "assets": {
+            "background": "assets/mockup1/scene1/cut1.mp4",
+            "reflections": "assets/mockup1/scene1/reflections.mov",
+            "mask": "assets/mockup1/scene1/mask.mov",
+            "corner_pin_data": "assets/mockup1/scene1/corner_pin_data.json"
+          },
+          "default_duration_frames": 88,
+          "effects_chain": [
+            { "effect": "corner_pin", "params": { "use_mask": true } },
+            { "effect": "reflections", "params": { "opacity": 0.5 } }
+          ]
+        },
+        {
+          "scene_id": "scene2",
+          "assets": {
+            "background": "assets/mockup1/scene2/cut2.mp4",
+            "reflections": "assets/mockup1/scene2/reflections.mov",
+            "mask": "assets/mockup1/scene2/mask.mov",
+            "corner_pin_data": "assets/mockup1/scene2/corner_pin_data.json"
+          },
+          "default_duration_frames": 88,
+          "effects_chain": [
+            { "effect": "corner_pin", "params": { "use_mask": true } },
+            { "effect": "reflections", "params": { "opacity": 0.5 } }
+          ]
+        },
+        {
+          "scene_id": "scene3",
+          "assets": {
+            "background": "assets/mockup1/scene3/cut3.mp4",
+            "reflections": "assets/mockup1/scene3/reflections.mov",
+            "mask": "assets/mockup1/scene3/mask.mov",
+            "corner_pin_data": "assets/mockup1/scene3/corner_pin_data.json"
+          },
+          "default_duration_frames": 88,
+          "effects_chain": [
+            { "effect": "corner_pin", "params": { "use_mask": true } },
+            { "effect": "reflections", "params": { "opacity": 0.5 } }
+          ]
+        }
+      ]
+    }
+  }
+  

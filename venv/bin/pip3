@@ -1,5 +1,5 @@
 #!/bin/sh
-'''exec' "/Users/krys/Library/CloudStorage/GoogleDrive-krystof.jezek@gmail.com/My Drive/Skola/BP/jezekkr2-bp-implementation/venv/bin/python3" "$0" "$@"
+'''exec' "/Users/krys/Library/CloudStorage/GoogleDrive-krystof.jezek@gmail.com/My Drive/Skola/BP/jezekkr2-bp-implementation/venv/bin/python" "$0" "$@"
 ' '''
 # -*- coding: utf-8 -*-
 import re
