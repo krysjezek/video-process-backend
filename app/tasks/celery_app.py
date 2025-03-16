@@ -4,8 +4,8 @@ from celery import Celery
 
 celery_app = Celery(
     'tasks',
-    broker='redis://localhost:6379/0',  # Adjust if necessary.
-    backend='redis://localhost:6379/0',
+    broker='redis://redis:6379/0',  # Adjust if necessary.
+    backend='redis://redis:6379/0',
     include=['app.tasks.processing_tasks']  # Explicitly include your tasks module.
 )
 

@@ -2,5 +2,6 @@ fastapi
 uvicorn
 celery
 redis
-moviepy
+moviepy==1.0.3
 opencv-python-headless
+python-multipart
