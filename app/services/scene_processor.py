@@ -1,5 +1,6 @@
 import os
 import tempfile
+import gc
 import json
 import moviepy.editor as mpy
 from app.services.effects import EFFECT_REGISTRY  # Our registry from __init__.py
@@ -32,22 +33,9 @@ def process_scene_with_effect_chain(mockup_config, user_video_path, scene_timing
     Processes a single scene using the effects chain defined in the mockup configuration.
     
     Parameters:
-      - mockup_config: Dictionary containing the mockup’s assets and effects chain.
-          Example:
-            {
-              "assets": {
-                  "background": "assets/mockup1/background.mp4",
-                  "reflections": "assets/mockup1/reflections.mp4",
-                  "mask": "assets/mockup1/mask.mov",
-                  "corner_pin_data": "assets/mockup1/corner_pin_data.json"
-              },
-              "effects_chain": [
-                  {"effect": "corner_pin", "params": {"use_mask": true}},
-                  {"effect": "reflections", "params": {"opacity": 0.5}}
-              ]
-            }
+      - mockup_config: Dictionary containing the scene’s assets and effects chain.
       - user_video_path: Path to the user’s source video.
-      - scene_timing: Dictionary with "in_frame" and "out_frame" (integers, at 24 fps) for trimming.
+      - scene_timing: Dictionary with "in_frame" and "out_frame" (at 24 fps) for trimming.
       - output_path: Where to save the processed scene video.
     """
     assets = mockup_config.get("assets", {})
@@ -77,6 +65,7 @@ def process_scene_with_effect_chain(mockup_config, user_video_path, scene_timing
         "fps": 24
     }
     
+    # Use scene-specific effects chain if provided; otherwise fallback to default.
     effects_chain = mockup_config.get("effects_chain") or mockup_config.get("default_effects_chain", [])
     
     # Define a frame function that applies the effect chain.
@@ -86,10 +75,22 @@ def process_scene_with_effect_chain(mockup_config, user_video_path, scene_timing
     # Create a full composite clip for the scene.
     full_clip = mpy.VideoClip(make_frame, duration=background_clip.duration)
     
-    # Trim the clip according to scene timing (convert frame numbers to seconds).
+    # Convert frame numbers to seconds.
     start_time = scene_timing["in_frame"] / context["fps"]
     end_time = scene_timing["out_frame"] / context["fps"]
     trimmed_clip = full_clip.subclip(start_time, end_time)
     
     # Write the processed scene video.
     trimmed_clip.write_videofile(output_path, fps=context["fps"], codec="libx264", audio_codec="aac")
+    
+    # Clean up: Close all clips to free memory.
+    full_clip.close()
+    trimmed_clip.close()
+    background_clip.close()
+    user_clip.close()
+    reflections_clip.close()
+    if mask_clip:
+        mask_clip.close()
+    
+    # Force garbage collection.
+    gc.collect()

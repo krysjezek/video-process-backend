@@ -2,6 +2,8 @@ import os
 import uuid
 import json
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi.responses import FileResponse
+from celery.result import AsyncResult
 from app.tasks.processing_tasks import process_job
 from app.config import load_mockup_config  # A helper function to load your mockups configuration
 
@@ -49,3 +51,32 @@ async def submit_job(
     task = process_job.delay(mockup_id, scene_order, user_video_path)
     
     return {"job_id": task.id, "message": "Job submitted successfully."}
+
+@router.get("/job-status/{job_id}")
+async def job_status(job_id: str):
+    try:
+        result = AsyncResult(job_id)
+        return {"job_id": job_id, "status": result.status, "result": result.result}
+    except Exception as e:
+        # Log the error as needed.
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/download/{filename}")
+async def download_video(filename: str):
+    """
+    Endpoint to download the final composite video.
+    
+    Expects:
+      - filename: The filename of the final output video (located in uploads/final_outputs).
+      
+    Returns:
+      A FileResponse to download the video.
+    """
+    file_path = os.path.join("uploads", "final_outputs", filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(path=file_path, media_type="video/mp4", filename=filename)
+
+
+

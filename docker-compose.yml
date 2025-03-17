@@ -1,15 +1,14 @@
-version: "3.8"
-
 services:
   web:
     build: .
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     depends_on:
       - redis
     volumes:
-      - .:/app
+      - ./assets:/app/assets  # Mount local assets to /app/assets
+      - ./uploads:/app/uploads  # Mount for user uploads and outputs
     environment:
       - ENV=production
 
@@ -19,9 +18,17 @@ services:
     depends_on:
       - redis
     volumes:
-      - .:/app
+      - ./assets:/app/assets  # Same mount for assets
+      - ./uploads:/app/uploads  # Same mount for uploads
     environment:
-      - ENV=production
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_IGNORE_RESULT=false
+    deploy:
+      resources:
+        limits:
+          memory: 8g  # Give it 8GB
+          cpus: "2.0"  # 2 CPUs
 
   redis:
     image: redis:6.2-alpine

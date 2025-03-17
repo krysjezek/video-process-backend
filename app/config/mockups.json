@@ -1,103 +1,102 @@
 {
-    "mockup1": {
-      "default_effects_chain": [
-        { "effect": "corner_pin", "params": { "use_mask": true } },
-        { "effect": "reflections", "params": { "opacity": 0.5 } }
-      ],
-      "scenes": [
-        {
-          "scene_id": "scene1",
-          "assets": {
-            "background": "assets/mockup1/scene1/background.mov",
-            "reflections": "assets/mockup1/scene1/reflections.mov",
-            "mask": "assets/mockup1/scene1/mask.mov",
-            "corner_pin_data": "assets/mockup1/scene1/corner_pin_data.json"
-          },
-          "default_duration_frames": 88,
-          "effects_chain": [
-            { "effect": "corner_pin", "params": { "use_mask": true } },
-            { "effect": "reflections", "params": { "opacity": 0.5 } }
-          ]
+  "mockup1": {
+    "default_effects_chain": [
+      { "effect": "corner_pin", "params": { "use_mask": true } },
+      { "effect": "reflections", "params": { "opacity": 0.5 } }
+    ],
+    "scenes": [
+      {
+        "scene_id": "scene1",
+        "assets": {
+          "background": "assets/mockup1/scene1/m1-s1-background.mp4",
+          "reflections": "assets/mockup1/scene1/m1-s1-reflections.mp4",
+          "mask": "assets/mockup1/scene1/m1-s1-mask.mp4",
+          "corner_pin_data": "assets/mockup1/scene1/corner_pin_data.json"
         },
-        {
-          "scene_id": "scene2",
-          "assets": {
-            "background": "assets/mockup1/scene2/background.mov",
-            "reflections": "assets/mockup1/scene2/reflections.mov",
-            "mask": "assets/mockup1/scene2/mask.mov",
-            "corner_pin_data": "assets/mockup1/scene2/corner_pin_data.json"
-          },
-          "default_duration_frames": 88,
-          "effects_chain": [
-            { "effect": "corner_pin", "params": { "use_mask": true } },
-            { "effect": "reflections", "params": { "opacity": 0.5 } }
-          ]
+        "default_duration_frames": 88,
+        "effects_chain": [
+          { "effect": "corner_pin", "params": { "use_mask": true } },
+          { "effect": "reflections", "params": { "opacity": 0.5 } }
+        ]
+      },
+      {
+        "scene_id": "scene2",
+        "assets": {
+          "background": "assets/mockup1/scene2/m1-s2-background.mp4",
+          "reflections": "assets/mockup1/scene2/m1-s2-reflections.mp4",
+          "mask": "assets/mockup1/scene2/m1-s2-mask.mp4",
+          "corner_pin_data": "assets/mockup1/scene2/corner_pin_data.json"
         },
-        {
-          "scene_id": "scene3",
-          "assets": {
-            "background": "assets/mockup1/scene3/background.mov",
-            "reflections": "assets/mockup1/scene3/reflections.mov",
-            "mask": "assets/mockup1/scene3/mask.mov",
-            "corner_pin_data": "assets/mockup1/scene3/corner_pin_data.json"
-          },
-          "default_duration_frames": 88,
-          "effects_chain": [
-            { "effect": "corner_pin", "params": { "use_mask": true } },
-            { "effect": "reflections", "params": { "opacity": 0.5 } }
-          ]
-        }
-      ]
-    },
-    "mockup2": {
-      "default_effects_chain": [
-        { "effect": "corner_pin", "params": { "use_mask": true } },
-        { "effect": "reflections", "params": { "opacity": 0.5 } }
-      ],
-      "scenes": [
-        {
-          "scene_id": "scene1",
-          "assets": {
-            "background": "assets/mockup1/scene1/cut1.mp4",
-            "reflections": "assets/mockup1/scene1/reflections.mov",
-            "mask": "assets/mockup1/scene1/mask.mov",
-            "corner_pin_data": "assets/mockup1/scene1/corner_pin_data.json"
-          },
-          "default_duration_frames": 88,
-          "effects_chain": [
-            { "effect": "corner_pin", "params": { "use_mask": true } },
-            { "effect": "reflections", "params": { "opacity": 0.5 } }
-          ]
+        "default_duration_frames": 88,
+        "effects_chain": [
+          { "effect": "corner_pin", "params": { "use_mask": true } },
+          { "effect": "reflections", "params": { "opacity": 0.5 } }
+        ]
+      },
+      {
+        "scene_id": "scene3",
+        "assets": {
+          "background": "assets/mockup1/scene3/m1-s3-background.mp4",
+          "reflections": "assets/mockup1/scene3/m1-s3-reflections.mp4",
+          "mask": "assets/mockup1/scene3/m1-s3-mask.mp4",
+          "corner_pin_data": "assets/mockup1/scene3/corner_pin_data.json"
         },
-        {
-          "scene_id": "scene2",
-          "assets": {
-            "background": "assets/mockup1/scene2/cut2.mp4",
-            "reflections": "assets/mockup1/scene2/reflections.mov",
-            "mask": "assets/mockup1/scene2/mask.mov",
-            "corner_pin_data": "assets/mockup1/scene2/corner_pin_data.json"
-          },
-          "default_duration_frames": 88,
-          "effects_chain": [
-            { "effect": "corner_pin", "params": { "use_mask": true } },
-            { "effect": "reflections", "params": { "opacity": 0.5 } }
-          ]
+        "default_duration_frames": 88,
+        "effects_chain": [
+          { "effect": "corner_pin", "params": { "use_mask": true } },
+          { "effect": "reflections", "params": { "opacity": 0.5 } }
+        ]
+      }
+    ]
+  },
+  "mockup2": {
+    "default_effects_chain": [
+      { "effect": "corner_pin", "params": { "use_mask": true } },
+      { "effect": "reflections", "params": { "opacity": 0.5 } }
+    ],
+    "scenes": [
+      {
+        "scene_id": "scene1",
+        "assets": {
+          "background": "assets/mockup2/scene1/cut1_converted.mp4",
+          "reflections": "assets/mockup2/scene1/reflections_converted.mp4",
+          "mask": "assets/mockup2/scene1/mask_converted.mp4",
+          "corner_pin_data": "assets/mockup2/scene1/corner_pin_data.json"
         },
-        {
-          "scene_id": "scene3",
-          "assets": {
-            "background": "assets/mockup1/scene3/cut3.mp4",
-            "reflections": "assets/mockup1/scene3/reflections.mov",
-            "mask": "assets/mockup1/scene3/mask.mov",
-            "corner_pin_data": "assets/mockup1/scene3/corner_pin_data.json"
-          },
-          "default_duration_frames": 88,
-          "effects_chain": [
-            { "effect": "corner_pin", "params": { "use_mask": true } },
-            { "effect": "reflections", "params": { "opacity": 0.5 } }
-          ]
-        }
-      ]
-    }
+        "default_duration_frames": 88,
+        "effects_chain": [
+          { "effect": "corner_pin", "params": { "use_mask": true } },
+          { "effect": "reflections", "params": { "opacity": 0.5 } }
+        ]
+      },
+      {
+        "scene_id": "scene2",
+        "assets": {
+          "background": "assets/mockup2/scene2/cut2_converted.mp4",
+          "reflections": "assets/mockup2/scene2/reflections_converted.mp4",
+          "mask": "assets/mockup2/scene2/mask_converted.mp4",
+          "corner_pin_data": "assets/mockup2/scene2/corner_pin_data.json"
+        },
+        "default_duration_frames": 88,
+        "effects_chain": [
+          { "effect": "corner_pin", "params": { "use_mask": true } },
+          { "effect": "reflections", "params": { "opacity": 0.5 } }
+        ]
+      },
+      {
+        "scene_id": "scene3",
+        "assets": {
+          "background": "assets/mockup2/scene3/cut3_converted.mp4",
+          "reflections": "assets/mockup2/scene3/reflections_converted.mp4",
+          "mask": "assets/mockup2/scene3/mask_converted.mp4",
+          "corner_pin_data": "assets/mockup2/scene3/corner_pin_data.json"
+        },
+        "default_duration_frames": 88,
+        "effects_chain": [
+          { "effect": "corner_pin", "params": { "use_mask": true } },
+          { "effect": "reflections", "params": { "opacity": 0.5 } }
+        ]
+      }
+    ]
   }
-  
+}

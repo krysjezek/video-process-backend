@@ -1,16 +1,14 @@
-# app/tasks/processing_tasks.py
-from celery import Celery
+from app.tasks.celery_app import celery_app  # Import the pre-configured Celery app
 from app.services.scene_processor import process_scene_with_effect_chain
 from app.services.timeline_assembler import assemble_timeline
 import os
 import uuid
 import json
-
-celery_app = Celery('tasks', broker='redis://localhost:6379/0')
+import subprocess
 
 @celery_app.task
 def process_job(mockup_id, scene_order_json, user_video_path):
-    # Load configuration for the given mockup (same as above)
+    # Load configuration for the given mockup
     from app.config import load_mockup_config
     config = load_mockup_config()
     if mockup_id not in config:
@@ -28,11 +26,27 @@ def process_job(mockup_id, scene_order_json, user_video_path):
         if scene_config is None:
             raise ValueError(f"Scene {scene_id} not found in mockup.")
         
-        scene_output = f"uploads/processed_scenes/{uuid.uuid4()}.mp4"
+        scene_output = f"/app/uploads/processed_scenes/{uuid.uuid4()}.mp4"
         process_scene_with_effect_chain(scene_config, user_video_path, scene_timing, scene_output)
         processed_scene_paths.append(scene_output)
     
-    final_output = f"uploads/final_outputs/{uuid.uuid4()}.mp4"
-    assemble_timeline(processed_scene_paths, final_output)
+    final_output = f"/app/uploads/final_outputs/{uuid.uuid4()}.mp4"
+    # Concatenate scenes with ffmpeg
+    concat_list = "/app/uploads/concat_list.txt"
+    with open(concat_list, "w") as f:
+        for scene_path in processed_scene_paths:
+            f.write(f"file '{scene_path}'\n")
+    
+    cmd = [
+        "ffmpeg", "-f", "concat", "-safe", "0", "-i", concat_list,
+        "-c:v", "libx264", "-c:a", "aac", "-y", final_output
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"FFmpeg concatenation failed: {result.stderr}")
+        raise Exception("Failed to concatenate scenes with FFmpeg")
+    
+    if os.path.exists(concat_list):
+        os.remove(concat_list)
     
     return final_output
