@@ -18,19 +18,23 @@ services:
     depends_on:
       - redis
     volumes:
-      - ./assets:/app/assets  # Same mount for assets
-      - ./uploads:/app/uploads  # Same mount for uploads
+      - ./assets:/app/assets
+      - ./uploads:/app/uploads
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://:mysecretpassword@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:mysecretpassword@redis:6379/0
       - CELERY_IGNORE_RESULT=false
     deploy:
       resources:
         limits:
-          memory: 8g  # Give it 8GB
-          cpus: "2.0"  # 2 CPUs
+          memory: 8g
+          cpus: "2.0"
+
 
   redis:
     image: redis:6.2-alpine
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     ports:
       - "6379:6379"

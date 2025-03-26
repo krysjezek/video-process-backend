@@ -2,8 +2,8 @@ from celery import Celery
 
 celery_app = Celery(
     'tasks',
-    broker='redis://redis:6379/0',    # Use the Docker service name "redis"
-    backend='redis://redis:6379/0',
+    broker='redis://:mysecretpassword@redis:6379/0',    # Note the colon and password before @
+    backend='redis://:mysecretpassword@redis:6379/0',
     include=['app.tasks.processing_tasks']
 )
 
