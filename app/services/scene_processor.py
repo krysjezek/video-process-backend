@@ -28,44 +28,62 @@ def apply_effect_chain(t, context, effects_chain):
             raise ValueError(f"Effect '{effect_name}' not found in registry")
     return frame
 
-def process_scene_with_effect_chain(mockup_config, user_video_path, scene_timing, output_path, logger_callback=None):
+def process_scene_with_effect_chain(mockup_config, user_video_path, scene_timing, output_path):
+    """
+    Processes a single scene using the effects chain defined in the mockup configuration.
+    
+    Parameters:
+      - mockup_config: Dictionary containing the scene’s assets and effects chain.
+      - user_video_path: Path to the user’s source video.
+      - scene_timing: Dictionary with "in_frame" and "out_frame" (at 24 fps) for trimming.
+      - output_path: Where to save the processed scene video.
+    """
     assets = mockup_config.get("assets", {})
     background_path = assets.get("background")
     reflections_path = assets.get("reflections")
     mask_path = assets.get("mask")
     corner_pin_data_path = assets.get("corner_pin_data")
     
+    # Load asset clips.
     background_clip = mpy.VideoFileClip(background_path)
     user_clip = mpy.VideoFileClip(user_video_path)
     reflections_clip = mpy.VideoFileClip(reflections_path)
     mask_clip = mpy.VideoFileClip(mask_path) if mask_path else None
-    
+
+    # Load corner pin tracking data.
     with open(corner_pin_data_path, 'r') as f:
         corner_pin_data = json.load(f)
     
+    # Build a context dictionary for the effect functions.
     context = {
         "background_clip": background_clip,
         "user_clip": user_clip,
         "reflections_clip": reflections_clip,
         "mask_clip": mask_clip,
         "corner_pin_data": corner_pin_data,
-        "output_size": background_clip.size,
+        "output_size": background_clip.size,  # (width, height)
         "fps": 24
     }
     
+    # Use scene-specific effects chain if provided; otherwise fallback to default.
     effects_chain = mockup_config.get("effects_chain") or mockup_config.get("default_effects_chain", [])
     
+    # Define a frame function that applies the effect chain.
     def make_frame(t):
         return apply_effect_chain(t, context, effects_chain)
     
+    # Create a full composite clip for the scene.
     full_clip = mpy.VideoClip(make_frame, duration=background_clip.duration)
+    
+    # Convert frame numbers to seconds.
     start_time = scene_timing["in_frame"] / context["fps"]
     end_time = scene_timing["out_frame"] / context["fps"]
     trimmed_clip = full_clip.subclip(start_time, end_time)
     
-    # Pass the logger_callback to write_videofile if provided
-    trimmed_clip.write_videofile(output_path, fps=context["fps"], codec="libx264", audio_codec="aac", logger=logger_callback)
+    # Write the processed scene video.
+    trimmed_clip.write_videofile(output_path, fps=context["fps"], codec="libx264", audio_codec="aac")
     
+    # Clean up: Close all clips to free memory.
     full_clip.close()
     trimmed_clip.close()
     background_clip.close()
@@ -74,4 +92,5 @@ def process_scene_with_effect_chain(mockup_config, user_video_path, scene_timing
     if mask_clip:
         mask_clip.close()
     
+    # Force garbage collection.
     gc.collect()

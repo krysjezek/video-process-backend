@@ -1,27 +1,10 @@
 from app.tasks.celery_app import celery_app  # Import the pre-configured Celery app
 from app.services.scene_processor import process_scene_with_effect_chain
+from app.services.timeline_assembler import assemble_timeline
 import os
 import uuid
 import json
 import subprocess
-
-# Custom logger class for MoviePy that calls self.update_state() for progress updates
-class CeleryProgressLogger:
-    def __init__(self, task, scene_id):
-        self.task = task
-        self.scene_id = scene_id
-        self.last_percent = 0
-
-    # MoviePy calls the logger's callback with (current, total, **kwargs)
-    def callback(self, current, total, **kwargs):
-        if total > 0:
-            percent = int((current / total) * 100)
-        else:
-            percent = 0
-        if percent != self.last_percent:
-            self.last_percent = percent
-            # Update progress for the current scene
-            self.task.update_state(state="PROGRESS", meta={"current_scene": self.scene_id, "progress": percent})
 
 @celery_app.task(bind=True)
 def process_job(self, mockup_id, scene_order_json, user_video_path):
@@ -46,19 +29,14 @@ def process_job(self, mockup_id, scene_order_json, user_video_path):
             raise ValueError(f"Scene {scene_id} not found in mockup.")
         
         scene_output = f"/app/uploads/processed_scenes/{uuid.uuid4()}.mp4"
-        
-        # Create a custom logger instance for this scene
-        logger = CeleryProgressLogger(self, scene_id)
-        
-        # Process the scene, passing our custom logger to update progress
-        process_scene_with_effect_chain(scene_config, user_video_path, scene_timing, scene_output, logger_callback=logger)
+        process_scene_with_effect_chain(scene_config, user_video_path, scene_timing, scene_output)
         processed_scene_paths.append(scene_output)
         
-        # Update overall progress (for example, after each scene, update overall percentage)
-        overall_progress = int((index / total_scenes) * 100)
-        self.update_state(state="PROGRESS", meta={"overall_progress": overall_progress})
+        # Calculate progress percentage and update state
+        progress = int((index / total_scenes) * 100)
+        self.update_state(state="PROGRESS", meta={"current_scene": scene_id, "progress": progress})
     
-    # Concatenate processed scenes using ffmpeg
+    # Concatenate the processed scenes into a final output
     final_output = f"/app/uploads/final_outputs/{uuid.uuid4()}.mp4"
     concat_list = "/app/uploads/concat_list.txt"
     with open(concat_list, "w") as f:
