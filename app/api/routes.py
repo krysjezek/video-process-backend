@@ -56,9 +56,9 @@ async def submit_job(
 async def job_status(job_id: str):
     try:
         result = AsyncResult(job_id)
-        return {"job_id": job_id, "status": result.status, "result": result.result}
+        # The meta data is available in result.info
+        return {"job_id": job_id, "status": result.status, "meta": result.info}
     except Exception as e:
-        # Log the error as needed.
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -6,8 +6,8 @@ import uuid
 import json
 import subprocess
 
-@celery_app.task
-def process_job(mockup_id, scene_order_json, user_video_path):
+@celery_app.task(bind=True)
+def process_job(self, mockup_id, scene_order_json, user_video_path):
     # Load configuration for the given mockup
     from app.config import load_mockup_config
     config = load_mockup_config()
@@ -17,8 +17,10 @@ def process_job(mockup_id, scene_order_json, user_video_path):
     
     scenes = json.loads(scene_order_json)
     processed_scene_paths = []
+    total_scenes = len(scenes)
     
-    for scene in scenes:
+    # Process each scene sequentially
+    for index, scene in enumerate(scenes, start=1):
         scene_id = scene["scene_id"]
         scene_timing = {"in_frame": scene["in_frame"], "out_frame": scene["out_frame"]}
         
@@ -29,9 +31,13 @@ def process_job(mockup_id, scene_order_json, user_video_path):
         scene_output = f"/app/uploads/processed_scenes/{uuid.uuid4()}.mp4"
         process_scene_with_effect_chain(scene_config, user_video_path, scene_timing, scene_output)
         processed_scene_paths.append(scene_output)
+        
+        # Calculate progress percentage and update state
+        progress = int((index / total_scenes) * 100)
+        self.update_state(state="PROGRESS", meta={"current_scene": scene_id, "progress": progress})
     
+    # Concatenate the processed scenes into a final output
     final_output = f"/app/uploads/final_outputs/{uuid.uuid4()}.mp4"
-    # Concatenate scenes with ffmpeg
     concat_list = "/app/uploads/concat_list.txt"
     with open(concat_list, "w") as f:
         for scene_path in processed_scene_paths:
