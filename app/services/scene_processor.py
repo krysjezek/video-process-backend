@@ -28,16 +28,7 @@ def apply_effect_chain(t, context, effects_chain):
             raise ValueError(f"Effect '{effect_name}' not found in registry")
     return frame
 
-def process_scene_with_effect_chain(mockup_config, user_video_path, scene_timing, output_path):
-    """
-    Processes a single scene using the effects chain defined in the mockup configuration.
-    
-    Parameters:
-      - mockup_config: Dictionary containing the scene’s assets and effects chain.
-      - user_video_path: Path to the user’s source video.
-      - scene_timing: Dictionary with "in_frame" and "out_frame" (at 24 fps) for trimming.
-      - output_path: Where to save the processed scene video.
-    """
+def process_scene_with_effect_chain(mockup_config, user_video_path, scene_timing, output_path, user_video_offset):
     assets = mockup_config.get("assets", {})
     background_path = assets.get("background")
     reflections_path = assets.get("reflections")
@@ -62,7 +53,8 @@ def process_scene_with_effect_chain(mockup_config, user_video_path, scene_timing
         "mask_clip": mask_clip,
         "corner_pin_data": corner_pin_data,
         "output_size": background_clip.size,  # (width, height)
-        "fps": 24
+        "fps": 24,
+        "user_offset": user_video_offset  # <-- Pass the cumulative offset here.
     }
     
     # Use scene-specific effects chain if provided; otherwise fallback to default.
@@ -92,5 +84,6 @@ def process_scene_with_effect_chain(mockup_config, user_video_path, scene_timing
     if mask_clip:
         mask_clip.close()
     
-    # Force garbage collection.
+    import gc
     gc.collect()
+

@@ -1,4 +1,3 @@
-# app/services/effects/corner_pin.py
 import cv2
 import numpy as np
 import json
@@ -11,9 +10,8 @@ def apply_corner_pin(frame, corners, output_size):
       - frame: The user-supplied video frame as a NumPy array.
       - corners: A dictionary containing the destination coordinates with keys:
                  'ul', 'ur', 'lr', 'll' (ordered as top-left, top-right, bottom-right, bottom-left).
-                 Each value should be a list or tuple of [x, y].
       - output_size: Tuple (width, height) for the size of the output frame.
-
+      
     Returns:
       - The warped frame (NumPy array) with the perspective applied.
     """
@@ -23,13 +21,9 @@ def apply_corner_pin(frame, corners, output_size):
                         [w, h],
                         [0, h]], dtype=np.float32)
     
-    # Define destination points from the tracking data
     dst_pts = np.array([corners['ul'], corners['ur'], corners['lr'], corners['ll']], dtype=np.float32)
     
-    # Compute the perspective transform matrix
     M = cv2.getPerspectiveTransform(src_pts, dst_pts)
-    
-    # Warp the frame into the output size
     warped = cv2.warpPerspective(frame, M, output_size)
     return warped
 
@@ -54,29 +48,44 @@ def load_corner_pin_data(filepath):
 def corner_pin_effect(frame, t, use_mask, context):
     """
     Applies a corner-pin transformation on the user layer and composites it over the current frame.
-    
+    This is the only part that now considers the global user video offset.
+
     Parameters:
       - frame: The current composite frame (typically from the background).
-      - t: Current time in seconds.
+      - t: Current time in seconds (relative to the current scene).
       - use_mask: Boolean indicating whether to apply masking.
       - context: Dictionary containing shared assets and parameters:
-            - "user_clip": The MoviePy clip for the user video.
-            - "mask_clip": The MoviePy clip for the matte mask (if available).
-            - "corner_pin_data": Dict mapping frame numbers (as strings) to corner coordinates.
-            - "output_size": Tuple (width, height) for the output.
-            - "fps": Frame rate (e.g., 24).
+          - "user_clip": The MoviePy clip for the user video.
+          - "corner_pin_data": Dictionary mapping frame numbers (as strings) to corner coordinates.
+          - "output_size": Tuple (width, height) for the output.
+          - "fps": Frame rate (e.g., 24).
+          - "user_offset": Cumulative offset in seconds to ensure the user video is continuous.
+          - "mask_clip": (Optional) The MoviePy clip for the matte mask.
+          
     Returns:
-      - The updated composite frame (NumPy array) after applying the user layer with masking.
+      - The updated composite frame (NumPy array) after applying the user layer with perspective transformation.
     """
     fps = context["fps"]
-    frame_num = str(int(t * fps))
+    # Calculate the global time by adding the cumulative user offset.
+    # This ensures we select the correct frame from the user video.
+    global_time = t + context.get("user_offset", 0)
+    
+    # <<<< Using global_time to choose the appropriate frame from the user video >>>>
+    if global_time < context["user_clip"].duration:
+        user_frame = context["user_clip"].get_frame(global_time)
+    else:
+        h, w = context["output_size"][1], context["output_size"][0]
+        user_frame = np.zeros((h, w, 3), dtype=np.uint8)
+    
+    # Use global_time to calculate the frame number for corner pin tracking
+    frame_num = str(int(global_time * fps))
     
     if frame_num in context["corner_pin_data"]:
         corners = context["corner_pin_data"][frame_num]
         
-        # Scale corner pin coordinates to match halved resolution
+        # Scale corner pin coordinates if necessary.
         original_resolution = 3840  # Assuming original was 3840x3840
-        current_width = 1920  # e.g., 1920
+        current_width = 1920  # e.g., current width
         scale_factor = current_width / original_resolution
         
         scaled_corners = {
@@ -86,14 +95,6 @@ def corner_pin_effect(frame, t, use_mask, context):
             'll': [int(corners['ll'][0] * scale_factor), int(corners['ll'][1] * scale_factor)]
         }
         
-        # Retrieve the user frame (or black if ended)
-        if t < context["user_clip"].duration:
-            user_frame = context["user_clip"].get_frame(t)
-        else:
-            h, w = context["output_size"][1], context["output_size"][0]
-            user_frame = np.zeros((h, w, 3), dtype=np.uint8)
-        
-        # Apply the corner pin transformation with scaled corners
         warped = apply_corner_pin(user_frame, scaled_corners, context["output_size"])
         
         if use_mask:
@@ -123,7 +124,6 @@ def corner_pin_effect(frame, t, use_mask, context):
             composite = (warped.astype(np.float32) * final_mask +
                          frame.astype(np.float32) * (1 - final_mask)).astype(np.uint8)
         else:
-            # Composite warped user video onto background without mask
             user_mask = np.any(warped != 0, axis=2).astype(np.uint8)
             user_mask_3 = cv2.merge([user_mask, user_mask, user_mask]).astype(np.float32)
             composite = (warped.astype(np.float32) * user_mask_3 +

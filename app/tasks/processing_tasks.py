@@ -8,7 +8,6 @@ import subprocess
 
 @celery_app.task(bind=True)
 def process_job(self, mockup_id, scene_order_json, user_video_path):
-    # Load configuration for the given mockup
     from app.config import load_mockup_config
     config = load_mockup_config()
     if mockup_id not in config:
@@ -18,6 +17,8 @@ def process_job(self, mockup_id, scene_order_json, user_video_path):
     scenes = json.loads(scene_order_json)
     processed_scene_paths = []
     total_scenes = len(scenes)
+    fps = 24  # You are using 24 fps
+    user_video_offset = 0.0  # Initialize the global offset in seconds
     
     # Process each scene sequentially
     for index, scene in enumerate(scenes, start=1):
@@ -29,10 +30,17 @@ def process_job(self, mockup_id, scene_order_json, user_video_path):
             raise ValueError(f"Scene {scene_id} not found in mockup.")
         
         scene_output = f"/app/uploads/processed_scenes/{uuid.uuid4()}.mp4"
-        process_scene_with_effect_chain(scene_config, user_video_path, scene_timing, scene_output)
+        
+        # Pass the current user_video_offset to the scene processor
+        process_scene_with_effect_chain(scene_config, user_video_path, scene_timing, scene_output, user_video_offset)
+        
         processed_scene_paths.append(scene_output)
         
-        # Calculate progress percentage and update state
+        # Calculate the duration of the current scene in seconds and update the offset
+        scene_duration = (scene_timing["out_frame"] - scene_timing["in_frame"]) / fps
+        user_video_offset += scene_duration
+        
+        # Optionally update progress information
         progress = int((index / total_scenes) * 100)
         self.update_state(state="PROGRESS", meta={"current_scene": scene_id, "progress": progress})
     
@@ -56,3 +64,4 @@ def process_job(self, mockup_id, scene_order_json, user_video_path):
         os.remove(concat_list)
     
     return final_output
+
