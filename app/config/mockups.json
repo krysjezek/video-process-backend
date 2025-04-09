@@ -1,8 +1,7 @@
 {
   "mockup1": {
     "default_effects_chain": [
-      { "effect": "corner_pin", "params": { "use_mask": true } },
-      { "effect": "reflections", "params": { "opacity": 0.5 } }
+      { "effect": "corner_pin", "params": { "use_mask": true } }
     ],
     "scenes": [
       {
