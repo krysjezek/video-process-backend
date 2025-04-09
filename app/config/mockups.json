@@ -14,7 +14,7 @@
         },
         "default_duration_frames": 88,
         "effects_chain": [
-          { "effect": "corner_pin", "params": { "use_mask": true } },
+          { "effect": "corner_pin", "params": { "use_mask": true } }
         ]
       },
       {
