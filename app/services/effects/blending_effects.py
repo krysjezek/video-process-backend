@@ -19,7 +19,7 @@ def reflections_effect(frame, t, opacity, context):
     
     Parameters:
       - frame: The current composite frame.
-      - t: Current time in seconds.
+      - t: Current time in seconds (local scene time).
       - opacity: A float (e.g., 0.5) for blending opacity.
       - context: Dictionary containing:
             - "reflections_clip": MoviePy clip for reflections.
@@ -33,6 +33,5 @@ def reflections_effect(frame, t, opacity, context):
         h, w = context["output_size"][1], context["output_size"][0]
         refl_frame = np.zeros((h, w, 3), dtype=np.uint8)
     blended = screen_blend(frame, refl_frame)
-    # Apply alpha blending: combine original frame and blended result.
     return (frame.astype(np.float32) * (1 - opacity) +
             blended.astype(np.float32) * opacity).astype(np.uint8)
