@@ -15,7 +15,6 @@
         "default_duration_frames": 88,
         "effects_chain": [
           { "effect": "corner_pin", "params": { "use_mask": true } },
-          { "effect": "reflections", "params": { "opacity": 0.5 } }
         ]
       },
       {
@@ -28,8 +27,7 @@
         },
         "default_duration_frames": 88,
         "effects_chain": [
-          { "effect": "corner_pin", "params": { "use_mask": true } },
-          { "effect": "reflections", "params": { "opacity": 0.5 } }
+          { "effect": "corner_pin", "params": { "use_mask": true } }
         ]
       },
       {
@@ -42,8 +40,7 @@
         },
         "default_duration_frames": 88,
         "effects_chain": [
-          { "effect": "corner_pin", "params": { "use_mask": true } },
-          { "effect": "reflections", "params": { "opacity": 0.5 } }
+          { "effect": "corner_pin", "params": { "use_mask": true } }
         ]
       }
     ]
