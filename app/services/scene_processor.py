@@ -41,6 +41,14 @@ def process_scene_with_effect_chain(mockup_config, user_video_path, scene_timing
     reflections_clip = mpy.VideoFileClip(reflections_path)
     mask_clip = mpy.VideoFileClip(mask_path) if mask_path else None
 
+    # Calculate the intended scene duration in seconds using scene timing.
+    fps = 24
+    scene_duration = (scene_timing["out_frame"] - scene_timing["in_frame"]) / fps
+
+    # If the background asset is shorter than the scene duration, loop it.
+    if background_clip.duration < scene_duration:
+         background_clip = background_clip.loop(duration=scene_duration)
+    
     # Load corner pin tracking data.
     with open(corner_pin_data_path, 'r') as f:
         corner_pin_data = json.load(f)
@@ -53,8 +61,8 @@ def process_scene_with_effect_chain(mockup_config, user_video_path, scene_timing
         "mask_clip": mask_clip,
         "corner_pin_data": corner_pin_data,
         "output_size": background_clip.size,  # (width, height)
-        "fps": 24,
-        "user_offset": user_video_offset  # <-- Pass the cumulative offset here.
+        "fps": fps,
+        "user_offset": user_video_offset  # Pass along the cumulative user video offset.
     }
     
     # Use scene-specific effects chain if provided; otherwise fallback to default.
@@ -62,28 +70,25 @@ def process_scene_with_effect_chain(mockup_config, user_video_path, scene_timing
     
     # Define a frame function that applies the effect chain.
     def make_frame(t):
+        # 't' here is relative to the scene (0 to scene_duration)
         return apply_effect_chain(t, context, effects_chain)
     
-    # Create a full composite clip for the scene.
-    full_clip = mpy.VideoClip(make_frame, duration=background_clip.duration)
+    # **** Updated: Use scene_duration to set the composite clip duration ****
+    full_clip = mpy.VideoClip(make_frame, duration=scene_duration)
     
-    # Convert frame numbers to seconds.
-    start_time = scene_timing["in_frame"] / context["fps"]
-    end_time = scene_timing["out_frame"] / context["fps"]
-    trimmed_clip = full_clip.subclip(start_time, end_time)
-    
-    # Write the processed scene video.
-    trimmed_clip.write_videofile(output_path, fps=context["fps"], codec="libx264", audio_codec="aac")
+    # Since full_clip now has the duration specified by scene_timing,
+    # we do not need to subclip it.
+    full_clip.write_videofile(output_path, fps=context["fps"], codec="libx264", audio_codec="aac")
     
     # Clean up: Close all clips to free memory.
     full_clip.close()
-    trimmed_clip.close()
     background_clip.close()
     user_clip.close()
     reflections_clip.close()
     if mask_clip:
         mask_clip.close()
     
-    import gc
+    # Force garbage collection.
     gc.collect()
+
 
