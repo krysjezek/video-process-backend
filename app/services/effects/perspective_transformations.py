@@ -43,9 +43,14 @@ def corner_pin_effect(frame, t, use_mask, context):
     logger.info("User clip duration %.3f", context["user_clip"].duration)
     
     # Select the frame from user_clip based on the global time.
-    user_frame = context["user_clip"].get_frame(global_time)
+    if global_time < context["user_clip"].duration:
+        user_frame = context["user_clip"].get_frame(global_time)
+    else:
+        h, w = context["output_size"][1], context["output_size"][0]
+        user_frame = np.zeros((h, w, 3), dtype=np.uint8)
+        logger.info("making black screen")
     
-    frame_num = str(int(global_time * fps))
+    frame_num = str(int(t * fps))
     
     if frame_num in context["corner_pin_data"]:
         corners = context["corner_pin_data"][frame_num]
@@ -95,6 +100,6 @@ def corner_pin_effect(frame, t, use_mask, context):
             composite = (warped.astype(np.float32) * user_mask_3 +
                          frame.astype(np.float32) * (1 - user_mask_3)).astype(np.uint8)
         
-        return user_frame
+        return composite
     else:
         return frame
