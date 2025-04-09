@@ -24,7 +24,6 @@ def reflections_effect(frame, t, opacity, context):
       - context: Dictionary containing:
             - "reflections_clip": MoviePy clip for reflections.
             - "output_size": (width, height) tuple.
-            
     Returns:
       - The updated composite frame with reflections blended.
     """
