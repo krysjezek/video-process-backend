@@ -66,8 +66,7 @@ def corner_pin_effect(frame, t, use_mask, context):
             'll': [int(corners['ll'][0] * scale_factor), int(corners['ll'][1] * scale_factor)]
         }
         
-        #warped = apply_corner_pin(user_frame, scaled_corners, context["output_size"])
-        warped = user_frame
+        warped = apply_corner_pin(user_frame, scaled_corners, context["output_size"])
         
         if use_mask:
             h, w = context["output_size"][1], context["output_size"][0]
@@ -101,6 +100,6 @@ def corner_pin_effect(frame, t, use_mask, context):
             composite = (warped.astype(np.float32) * user_mask_3 +
                          frame.astype(np.float32) * (1 - user_mask_3)).astype(np.uint8)
         
-        return composite
+        return user_frame
     else:
         return frame
