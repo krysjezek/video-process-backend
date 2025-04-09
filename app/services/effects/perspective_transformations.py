@@ -40,6 +40,7 @@ def corner_pin_effect(frame, t, use_mask, context):
     
     # Log the values so you can see what's happening.
     logger.info("Corner pin effect: t=%.3f, user_offset=%.3f, global_time=%.3f", t, context.get("user_offset", 0), global_time)
+    logger.info("User clip duration %.3f", context["user_clip"].duration)
     
     # Select the frame from user_clip based on the global time.
     if global_time < context["user_clip"].duration:
