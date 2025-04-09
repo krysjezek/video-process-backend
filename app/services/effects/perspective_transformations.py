@@ -68,6 +68,7 @@ def corner_pin_effect(frame, t, use_mask, context):
     fps = context["fps"]
     # --- Here we calculate the global time for the user video ---
     global_time = t + context.get("user_offset", 0)
+    logger.info("Corner pin effect: t=%.3f, user_offset=%.3f, global_time=%.3f", t, context.get("user_offset", 0), global_time)
     
     # Select the user frame only if we're within its duration; otherwise, use a black frame.
     if global_time < context["user_clip"].duration:
