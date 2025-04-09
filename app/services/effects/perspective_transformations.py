@@ -51,6 +51,8 @@ def corner_pin_effect(frame, t, use_mask, context):
         logger.info("making black screen")
     
     frame_num = str(int(global_time * fps))
+
+    logger.info("user frame %s", user_frame)
     
     if frame_num in context["corner_pin_data"]:
         corners = context["corner_pin_data"][frame_num]
