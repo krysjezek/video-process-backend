@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Error><Code>SignatureDoesNotMatch</Code><Message>The request signature we calculated does not match the signature you provided. Check your key and signing method.</Message><Key>outputs/138863bb-665d-441f-b7c5-6ecf823741e3.mp4</Key><BucketName>video-mockups</BucketName><Resource>/video-mockups/outputs/138863bb-665d-441f-b7c5-6ecf823741e3.mp4</Resource><RequestId>183A24C8BC7D1A84</RequestId><HostId>dd9025bab4ad464b049177c95eb6ebf374d3b3fd1af9251148b658df7ac2e3e8</HostId></Error>

@@ -6,30 +6,45 @@ services:
       - "8000:8000"
     depends_on:
       - redis
+      - minio
     volumes:
       - ./assets:/app/assets  # Mount local assets to /app/assets
       - ./uploads:/app/uploads  # Mount for user uploads and outputs
+      - ./app/config:/app/app/config  # Mount config directory
     environment:
       - ENV=production
+      - API_KEY=${API_KEY}  # Add API key for authentication
+      - CELERY_BROKER_URL=redis://:mysecretpassword@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:mysecretpassword@redis:6379/0
+      - CELERY_IGNORE_RESULT=false
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=video-mockups
 
   worker:
     build: .
-    command: celery -A app.tasks.celery_app.celery_app worker --loglevel=info
+    command: celery -A app.tasks.celery_app.celery_app worker --loglevel=debug
     depends_on:
       - redis
+      - minio
     volumes:
       - ./assets:/app/assets
       - ./uploads:/app/uploads
+      - ./app/config:/app/app/config  # Mount config directory
     environment:
       - CELERY_BROKER_URL=redis://:mysecretpassword@redis:6379/0
       - CELERY_RESULT_BACKEND=redis://:mysecretpassword@redis:6379/0
       - CELERY_IGNORE_RESULT=false
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=video-mockups
     deploy:
       resources:
         limits:
           memory: 8g
           cpus: "2.0"
-
 
   redis:
     image: redis:6.2-alpine
@@ -38,3 +53,35 @@ services:
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     ports:
       - "6379:6379"
+
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
+    command: server /data --console-address ":9001"
+
+  test:
+    build: .
+    command: python -m pytest tests/ -v --cov=app --cov-report=term-missing
+    volumes:
+      - .:/app
+    environment:
+      - ENV=test
+      - CELERY_BROKER_URL=redis://:mysecretpassword@redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://:mysecretpassword@redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET=video-mockups
+    depends_on:
+      - redis
+      - minio
+
+volumes:
+  minio_data:

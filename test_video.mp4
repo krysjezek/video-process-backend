@@ -1,0 +1,8 @@
+HTTP/1.1 404 Not Found
+date: Sun, 27 Apr 2025 10:11:29 GMT
+server: uvicorn
+content-length: 22
+content-type: application/json
+x-correlation-id: fa1fce88-d17a-429f-a905-90887438253d
+
+{"detail":"Not Found"}

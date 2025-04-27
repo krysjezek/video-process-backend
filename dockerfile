@@ -1,18 +1,24 @@
 # Use an official Python runtime as a parent image
-FROM python:3.13-slim
-
-# Install system dependencies including ffmpeg
-RUN apt-get update && apt-get install -y ffmpeg && apt-get clean
+FROM python:3.11-slim
 
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy and install requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy only the app code (no assets)
-COPY app/ /app/app/
+# Copy dependency files
+COPY pyproject.toml ./
+
+# Install Python dependencies including dev dependencies
+RUN pip install --no-cache-dir -e ".[dev]"
+
+# Copy application code
+COPY . .
 
 # Expose port 8000 for the FastAPI app
 EXPOSE 8000

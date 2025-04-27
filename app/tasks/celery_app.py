@@ -1,9 +1,10 @@
 from celery import Celery
+from app.config.redis import REDIS_URL
 
 celery_app = Celery(
     'tasks',
-    broker='redis://:mysecretpassword@redis:6379/0',    # Note the colon and password before @
-    backend='redis://:mysecretpassword@redis:6379/0',
+    broker=REDIS_URL,
+    backend=REDIS_URL,
     include=['app.tasks.processing_tasks']
 )
 

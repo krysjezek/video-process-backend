@@ -1,0 +1,57 @@
+FROM python:3.11-slim AS builder
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy dependency files
+COPY pyproject.toml ./
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -e ".[dev]" || \
+    pip install --no-cache-dir -e ".[dev]" --no-deps && \
+    pip install pytest pytest-cov pytest-asyncio black ruff mypy types-redis
+
+# Copy application code
+COPY . .
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy from builder
+COPY --from=builder /app /app
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin/pytest /usr/local/bin/pytest
+
+# Install main dependencies
+RUN pip install --no-cache-dir \
+    fastapi \
+    uvicorn \
+    celery \
+    redis \
+    "moviepy==1.0.3" \
+    opencv-python-headless \
+    python-multipart \
+    structlog \
+    pydantic \
+    httpx \
+    psutil
+
+# Set environment variables
+ENV ENV=test
+ENV CELERY_BROKER_URL=redis://:mysecretpassword@redis:6379/0
+ENV CELERY_RESULT_BACKEND=redis://:mysecretpassword@redis:6379/0
+ENV PATH="/usr/local/bin:${PATH}"
+ENV PYTHONPATH=/app
+
+# Command to run tests
+CMD ["pytest", "tests/", "-v", "--cov=app", "--cov-report=term-missing"] 

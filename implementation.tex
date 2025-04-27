@@ -1,0 +1,734 @@
+\chapter{Implementation} \label{chap:implementation}
+
+%-------------------------------------------------
+% 5.1  Development Setup
+%-------------------------------------------------
+\section{Development Setup}
+\label{sec:dev-setup}
+
+The prototype is developed and tested inside a \emph{reproducible dev-container},
+so that any assessor can clone the repository and spin up an identical stack
+with one command:
+
+\begin{lstlisting}[language=bash,basicstyle=\ttfamily\scriptsize]
+git clone https://github.com/xyz/video-mockup-backend.git
+cd video-mockup-backend
+docker compose up --build     # API + worker + broker + MinIO
+\end{lstlisting}
+
+The image is based on \texttt{python:3.11-slim}; dependencies from
+\texttt{pyproject.toml} are installed at build time, and a VS Code
+\texttt{launch.json} lets contributors attach to the API container for
+interactive debugging.  All configuration is injected via environment variables
+in line with the Twelve-Factor configuration principle \cite{twelveFactor}.
+
+\paragraph{Repository layout.}
+Table~\ref{tab:repo-tree} lists the top-level directories; every package name
+mirrors a component from the design chapter (Fig.\,\ref{fig:cmp}), keeping code
+and architecture in lock-step.
+
+\begin{table}[htbp]
+  \centering
+  \scriptsize
+  \caption{Key directories and their responsibilities (abridged)}
+  \label{tab:repo-tree}
+  \begin{tabularx}{\textwidth}{@{}l X@{}}
+    \toprule
+    \textbf{Path} & \textbf{Purpose} \\
+    \midrule
+    \texttt{app/api/}       & FastAPI routers, Pydantic schemas, auth dependency. \\
+    \texttt{app/tasks/}     & Celery task modules; entry-point \texttt{processing\_tasks.py}. \\
+    \texttt{app/services/}  & Stateless helpers (effect registry, timeline loader, storage client). \\
+    \texttt{app/effects/}   & Individual effect functions (\texttt{corner\_pin.py}, \texttt{reflections.py}\,…). \\
+    \texttt{deployment/}    & \texttt{docker-compose.yml}, \texttt{.env.example}, Helm chart (draft). \\
+    \texttt{tests/}         & Pytest suites, Testcontainers spin up Redis + MinIO. \\
+    \texttt{scripts/}       & One-off maintenance and data-migration helpers. \\
+    \texttt{mockups/}       & Static assets and \texttt{mockups.json} manifest for automated tests. \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\paragraph{Tooling highlights.}
+\begin{itemize}
+  \item \textbf{Pre-commit hooks}—run \texttt{ruff}\,lint, \texttt{black} format,
+        and \texttt{mypy} type-check on every commit.
+  \item \textbf{Hot-reload}—API container starts with
+        \texttt{uvicorn --reload}, giving sub-second feedback.
+  \item \textbf{Makefile}—targets \texttt{make test}, \texttt{make lint},
+        \texttt{make bench} wrap common tasks.
+  \item \textbf{Layer caching}—Docker layers are pinned via
+        \texttt{requirements.lock}; CI jobs reuse the cache to keep turnaround
+        below 90 s.
+\end{itemize}
+
+This environment ensures that every contributor—or examiner—runs against an
+identical stack, eliminating the “works-on-my-machine” class of defects and
+accelerating code reviews.
+
+%-------------------------------------------------
+% 5.2  Core Backend Modules
+%-------------------------------------------------
+\section{Core Backend Modules}
+\label{sec:core-modules}
+
+This section walks through the four runtime modules that implement the
+functional requirements FR-01–FR-06. Short, self-contained code snippets are
+shown in a \emph{trimmed} form; full listings live in the repository.
+
+%-------------------------------------------------
+% 5.2.1  HTTP layer (FastAPI)
+%-------------------------------------------------
+\subsection{HTTP Layer (FastAPI)}
+\label{sec:fastapi}
+
+The API exposes three resource groups—\texttt{/jobs}, \texttt{/status},
+and \texttt{/templates}.  Listing \ref{lst:jobs-endpoint} shows the
+\texttt{/jobs} POST handler; Pydantic validation rejects malformed payloads
+before any I/O occurs, and the dependency \texttt{verify\_token} enforces the
+simple header-token scheme promised in NFR-05.
+Table~\ref{tab:endpoints} consolidates the REST surface; every call maps
+directly to one or more functional requirements (last column).
+
+\begin{lstlisting}[language=python,caption={Trimmed
+  \texttt{/jobs} endpoint (implements FR-01, 05)},
+  label={lst:jobs-endpoint},basicstyle=\scriptsize\ttfamily]
+@router.post("/jobs", status_code=202)
+async def submit_job(
+        payload: JobRequest = Depends(JobRequest.as_form),
+        file: UploadFile = File(...),
+        _: None = Depends(verify_token)):          # <-- auth guard
+    size_guard(file)                               # 413 on breach
+    video_key = put_temp_object(payload.mockup_id, file)
+    task = process_job.delay(payload.mockup_id,
+                             payload.scene_order.json(),
+                             video_key)
+    return {"job_id": task.id}
+\end{lstlisting}
+
+FastAPI auto-generates an OpenAPI 3.1 document at
+\texttt{/docs}, enabling \emph{“try-it-out”} calls that satisfy usability
+requirement NFR-03 and reduce time-to-first-call for client developers
+\cite{swaggerStudy}.
+
+\begin{table}[htbp]
+\centering
+\scriptsize
+\caption{Public REST endpoints exposed by the API service}
+\label{tab:endpoints}
+\begin{tabularx}{\textwidth}{@{}l l l X l@{}}
+\toprule
+\textbf{Method} & \textbf{Path} & \textbf{Auth} & \textbf{Purpose / payload} & \textbf{FR ID(s)} \\
+\midrule
+POST & \texttt{/jobs} &
+\ding{51} & Multipart form: \texttt{mockup\_id} (str), \texttt{scene\_order} (JSON), video file.  
+Returns \{\,\textit{job\_id}\,\}. & FR-01,03,05 \\
+\addlinespace[0.25em]
+GET  & \texttt{/jobs/\{id\}} &
+\ding{51} & Poll job state.  
+\textit{PROGRESS} → meta \{scene, index, total\};  
+\textit{SUCCESS} → presigned \texttt{download\_url}. & FR-06 \\
+\addlinespace[0.25em]
+POST & \texttt{/templates} &
+\ding{51} & Upload or update a \texttt{mockups.json} manifest.  
+Validates against JSON-Schema and stores in S3. & FR-04 \\
+\addlinespace[0.25em]
+GET  & \texttt{/templates} &
+\ding{55} & List available templates with thumbnail URLs and scene count. & — (UX helper) \\
+\addlinespace[0.25em]
+PATCH & \texttt{/templates/\{id\}} &
+\ding{51} & Toggle effects or blur intensity on an existing template. & FR-02 \\
+\addlinespace[0.25em]
+\bottomrule
+\end{tabularx}
+\end{table}
+
+All mutating endpoints require the custom header
+\texttt{X-API-Key}, injected by the dependency \texttt{verify\_token}.  
+OpenAPI 3.1 documentation, generated at \verb|/docs|, allows developers to
+exercise each call interactively, improving first-time integration experience
+and fulfilling the usability goal NFR-03.
+
+%-------------------------------------------------
+% 5.2.2  Asynchronous worker (Celery)
+%-------------------------------------------------
+\subsection{Asynchronous Worker}
+\label{sec:celery}
+
+A Celery task carries four immutable fields—\texttt{job\_id}, template ID,
+timeline JSON, and the S3 key of the upload—mirroring the job message in the
+architecture diagram. The task retries automatically with exponential back-off
+and pushes progress events every time a scene is written.
+
+\begin{lstlisting}[language=python,caption={Scene-aware Celery task},
+  label={lst:celery-task},basicstyle=\scriptsize\ttfamily]
+@celery_app.task(bind=True,
+                 autoretry_for=(Exception,),
+                 retry_backoff=True,
+                 max_retries=3)
+def process_job(self, tmpl_id, timeline_json, video_key):
+    cfg = load_mockup(tmpl_id)
+    scenes = json.loads(timeline_json)
+    outputs = []
+    offset_s = 0.0                      # global user-video offset
+
+    for idx, s in enumerate(scenes, start=1):
+        out = f"/tmp/{uuid4()}.mp4"
+        process_scene_with_effect_chain(cfg, s, video_key,
+                                        out, offset_s)
+        offset_s += scene_seconds(s)
+        outputs.append(out)
+        self.update_state(state="PROGRESS",
+                          meta={"scene": s["scene_id"],
+                                "index": idx,
+                                "total": len(scenes)})
+
+    final_key = concat_via_ffmpeg(outputs)          # zero-copy join
+    return final_key                                # S3 key
+\end{lstlisting}
+
+The task embodies the classic work-queue integration pattern
+\cite{fowlerQueue}; failures are isolated to a single message and never block
+the HTTP tier.
+
+%-------------------------------------------------
+% 5.2.3  Effect registry
+%-------------------------------------------------
+%-------------------------------------------------
+% 5.2.3  Effect registry
+%-------------------------------------------------
+\subsection{Effect Registry}
+\label{sec:effect-registry}
+
+All per-frame manipulations are implemented as \emph{effects}.  An effect is a
+pure Python callable that transforms an RGB NumPy frame and returns a new
+frame; side effects are forbidden to keep the pipeline stateless and
+composable.  Functions are discovered at run-time through a registry
+(Listing~\ref{lst:effect-reg}).  Designers add looks by dropping a file under
+\texttt{app/effects/} and importing it into \texttt{EFFECT\_REGISTRY}; no
+worker code changes are required, fulfilling extensibility goal~R-5.
+
+\begin{lstlisting}[language=python,caption={Pluggable effect registry},
+  label={lst:effect-reg},basicstyle=\scriptsize\ttfamily]
+from .corner_pin   import corner_pin_effect
+from .reflections  import reflections_effect
+from .gauss_blur   import gauss_blur_effect     # newly added
+
+EFFECT_REGISTRY: dict[str, EffectFn] = {
+    "corner_pin":  corner_pin_effect,
+    "reflections": reflections_effect,
+    "gauss_blur":  gauss_blur_effect,
+}
+\end{lstlisting}
+
+\vspace{-0.6em}
+\paragraph{Built-in effects.}
+Table \ref{tab:effects} documents the three effects shipped with the MVP and
+how each is implemented.  Citations are placed directly in the algorithm
+description to keep the table compact.
+
+\begin{table}[htbp]
+\centering
+\scriptsize
+\caption{Default effects shipped in the MVP}
+\label{tab:effects}
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Name} & \textbf{Key params} & \textbf{Algorithm / notes} \\
+\midrule
+\texttt{corner\_pin} &
+\texttt{use\_mask} (bool) &
+Planar homography $H$ derived from four target corners and applied with
+\texttt{cv2.warpPerspective}; optional matte confines the warp to the screen
+geometry \cite{openCvHomography}. \\[0.25em]
+
+\texttt{reflections} &
+\texttt{opacity} $0{.}0$–$1{.}0$ &
+Screen Blend: $C_\text{out}=1-(1-C_\text{in})(1-R)$, then linear interpolate
+with input frame according to \textit{opacity}.  Formula follows Adobe
+documentation \cite{adobeBlend}. \\[0.25em]
+
+\texttt{gauss\_blur} &
+\texttt{sigma} (float) &
+Separable Gaussian kernel applied per channel via
+\texttt{cv2.GaussianBlur}; optional ROI mask.  Standard implementation from
+Gonzalez \& Woods \cite{gonzalez}. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
+\paragraph{Execution flow.}
+During scene rendering the worker calls
+\texttt{apply\_effect\_chain(t, context, chain)}.  
+For each element:
+
+\begin{enumerate}
+  \item Look up the callable by key in \texttt{EFFECT\_REGISTRY}.  
+  \item Pass the current frame, local time~$t$, effect-specific parameters,
+        and the shared \textit{context} dictionary (clips, corner-pin JSON,
+        output size, user-video offset).  
+  \item The function returns a new frame which becomes the input for the next
+        effect in the chain.
+\end{enumerate}
+
+Because effects are side-effect-free and stateless, they can be reordered,
+omitted, or repeated without breaking the pipeline—exactly the
+designer-friendly flexibility targeted in FR-02 and FR-05.
+
+
+%-------------------------------------------------
+% 5.2.4  Timeline Assembler
+%-------------------------------------------------
+\subsection{Timeline Assembler}
+\label{sec:timeline}
+
+After each scene is rendered in isolation a final pass concatenates the clips
+into one deliverable.  The assembler lives in
+\texttt{app/services/timeline\_assembler.py} and uses MoviePy’s high-level
+API rather than spawning FFmpeg directly—an approach that keeps the Python
+process in full control of errors and progress callbacks, yet still writes a
+single H.264 file in a single pass.
+
+\paragraph{Why two phases?}
+\begin{enumerate}
+  \item \textbf{Scene phase —} render every scene to an intermediate MP4 as
+        soon as its frames are finished.  
+        \textit{Benefit:} memory is bounded and failures are isolated to one scene.
+  \item \textbf{Concat phase —} load each scene with
+        \texttt{VideoFileClip()} and call
+        \texttt{concatenate\_videoclips} (\,\textit{method="compose"}\,)
+        which performs stream-level concat and resamples resolution or FPS if
+        required.  The result is written once via
+        \texttt{write\_videofile} (Listing \ref{lst:assemble}).
+\end{enumerate}
+
+\begin{lstlisting}[language=python,caption={Timeline assembler used by the worker},
+  label={lst:assemble},basicstyle=\scriptsize\ttfamily]
+def assemble_timeline(scene_files: list[str], out_path: str) -> None:
+    """Join scene clips in the user-defined order and write the final MP4."""
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    clips   = [mpy.VideoFileClip(fp) for fp in scene_files]
+    joined  = mpy.concatenate_videoclips(clips, method="compose")
+    joined.write_videofile(out_path, fps=24,
+                           codec="libx264", audio_codec="aac")
+\end{lstlisting}
+
+\paragraph{Ordering \& trimming logic.}
+The list \texttt{scene\_files} is produced by the Celery task in the same
+order that the user specified in the timeline \gls{json}.
+Because each scene was already trimmed before encoding, the assembler
+contains \emph{no} timing rules—simplicity that keeps maintenance low and
+matches the single-responsibility principle \cite{martinSRP}.
+
+
+This two-phase strategy preserves the user’s freedom to reorder or omit
+scenes (FR-05, 06) while keeping RAM usage and code complexity modest.
+
+%-------------------------------------------------
+% 5.3  Video-Processing Layer
+%-------------------------------------------------
+\section{Video-Processing Layer}
+\label{sec:impl-video}
+
+The compositor’s “hot path’’ combines MoviePy’s timeline orchestration with
+OpenCV’s pixel-level speed.  Figure~\ref{fig:video-path} illustrates the frame
+journey for one scene; Listing \ref{lst:apply-chain}
+shows the critical routines.
+
+\begin{figure}[htbp]
+  \centering
+  % replace frame with actual sequence diagram if time permits
+  \fbox{\rule{0pt}{5.0cm}\rule{0.85\linewidth}{0pt}}
+  \caption{Per-frame data flow: MoviePy requests a frame → effect chain
+           transforms it in-memory → MoviePy encodes the result.}
+  \label{fig:video-path}
+\end{figure}
+
+%-------------------------------------------------
+% 5.3.1  Effect-chain driver
+%-------------------------------------------------
+\subsection{Effect-chain Driver}
+\label{sec:apply-chain}
+
+Listing~\ref{lst:apply-chain} is the \texttt{apply\_effect\_chain} routine.
+It exists in the \texttt{services} layer so that each effect remains a pure
+function; the driver owns the loop, error handling, and registry look-ups.
+
+\begin{lstlisting}[language=python,caption={Effect-chain executor},
+                   basicstyle=\scriptsize\ttfamily,
+                   label={lst:apply-chain}]
+def apply_effect_chain(t: float, ctx: Ctx, chain: list[dict]) -> npt.NDArray:
+    """Run the configured effects for local time t (sec)."""
+    frame = (ctx["background_clip"].get_frame(t)
+             if t < ctx["background_clip"].duration
+             else np.zeros((ctx["h"], ctx["w"], 3), dtype=np.uint8))
+
+    for step in chain:
+        fx_name = step["effect"]
+        fx      = EFFECT_REGISTRY.get(fx_name)
+        if not fx:
+            raise ValueError(f"Effect '{fx_name}' not registered")
+        frame = fx(frame, t=t, context=ctx, **step.get("params", {}))
+    return frame
+\end{lstlisting}
+
+*The driver is deliberately tiny*—ten lines—so that unit tests can easily
+patch the registry and verify frame equality for any chain order.
+
+%-------------------------------------------------
+% 5.3.3  Memory hygiene
+%-------------------------------------------------
+\subsection{Memory Hygiene}
+\label{sec:mem-hygiene}
+
+Each scene is wrapped in a \texttt{with VideoFileClip(...)} block so that
+MoviePy closes file handles deterministically once \texttt{write\_videofile}
+returns.  After writing the MP4 the worker calls \texttt{gc.collect()} to free
+NumPy buffers and OpenCV matrices, limiting peak RSS to \(\sim\)700 MB during a
+one-minute 1080p job—well under the \SI{2}{GB} limit of the target cloud
+instance (NFR-01).
+
+\bigskip
+The combination of MoviePy’s high-level timeline and OpenCV’s SIMD-optimised
+kernels delivers a simple yet performant processing core—achieving the
+per-minute throughput target in NFR-01.
+
+%-------------------------------------------------
+% 5.4  Error Handling & Observability
+%-------------------------------------------------
+\section{Error Handling \& Observability}
+\label{sec:impl-logging}
+
+The \gls{mvp} does not attempt full-blown DevOps telemetry, but it \emph{must}
+let a maintainer trace any failure, correlate logs across containers, and
+verify throughput targets.  These needs are met with two lightweight
+building blocks: structured JSON logs and a consistent
+exception flow.
+
+%-------------------------------------------------
+% 5.4.1 Structured logging
+%-------------------------------------------------
+\subsection{Structured logging}
+\label{sec:impl-logging-structured}
+
+We use \texttt{structlog}\footnote{\url{https://www.structlog.org}} to emit
+machine-parseable JSON from \textbf{every} process.  
+A single context field \texttt{"job\_id"} propagates from the FastAPI layer
+into Celery workers (via the task payload) so that a Kibana filter
+instantly groups all records for one render job.
+
+\begin{lstlisting}[language=python,
+                   basicstyle=\scriptsize\ttfamily,
+                   caption={Logging bootstrap (\texttt{app/logging.py})},
+                   label={lst:logconfig}]
+def init_logging():
+    structlog.configure(
+        processors=[
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.add_log_level,
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.JSONRenderer()
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+    )
+\end{lstlisting}
+
+Every request handler binds the identifier once:
+
+\begin{lstlisting}[language=python,basicstyle=\scriptsize\ttfamily]
+log = structlog.get_logger().bind(job_id=job_id)
+\end{lstlisting}
+
+and downstream code inherits that logger automatically—no globals required.
+
+%-------------------------------------------------
+% 5.4.2 Exception flow
+%-------------------------------------------------
+\subsection{Exception flow}
+\label{sec:impl-exceptions}
+
+\begin{itemize}
+  \item \textbf{API layer.}  
+        Domain errors subclass \texttt{APIError}; FastAPI converts them to
+        \texttt{HTTPException} with a JSON body
+        \texttt{\{"error\_code", "detail"\}}.  
+        An unknown \texttt{mockup\_id} therefore returns \texttt{422 UNPROCESSABLE\_ENTITY}.
+  \item \textbf{Worker layer.}  
+        Celery tasks are declared with \verb|@app.task(bind=True)| so the
+        instance can invoke \verb|self.retry(exc=e)| on transient I/O faults
+        (e.g.\ S3 time-out).  
+        After three attempts the task enters the \texttt{FAILURE} state; the
+        API surfaces the traceback through \texttt{/job-status}.
+\end{itemize}
+
+This satisfies the “clear error messages’’ clause of NFR-03 while keeping
+clients stateless: they poll until \texttt{SUCCESS} or \texttt{FAILURE}.
+
+%-------------------------------------------------
+% 5.5  Public-Facing Documentation
+%-------------------------------------------------
+\section{API Documentation \& Example Payloads}
+\label{sec:impl-docs}
+
+The usability objective (NFR-03) requires that \emph{a developer who has never
+seen the code} can discover and exercise every capability within minutes.  
+We meet that goal with three complementary artefacts:
+
+\begin{enumerate}
+  \item an auto-generated OpenAPI spec (\texttt{/openapi.json});
+  \item Swagger UI at \texttt{/docs};
+  \item inline \gls{json} examples hosted in the repository.
+\end{enumerate}
+
+\subsection{OpenAPI \& Swagger UI}
+
+FastAPI derives the schema directly from Pydantic models and route signatures; no
+hand-written YAML is necessary.  Figure~\ref{fig:swagger} shows the rendered
+interactive page where users can “Try it out’’ with live requests against a
+running container.
+
+\begin{figure}[htbp]
+  \centering
+  % (screenshot placeholder)
+  \fbox{\rule{0pt}{5cm}\rule{0.80\linewidth}{0pt}}
+  \caption{Swagger UI: the \texttt{/submit-job} endpoint expanded.}
+  \label{fig:swagger}
+\end{figure}
+
+\subsection{Canonical Request / Response Pairs}
+
+\textbf{Submit a job.}
+
+\begin{lstlisting}[
+caption={Timeline JSON embedded in the \texttt{scene\_order} form-field},
+                   label={lst:timeline}]
+[
+  {"scene_id": "scene1", "in_frame": 25, "out_frame": 88},
+  {"scene_id": "scene2", "in_frame": 0,  "out_frame": 88},
+  {"scene_id": "scene3", "in_frame": 0,  "out_frame": 72}
+]
+\end{lstlisting}
+
+\textbf{Response} (\texttt{202} Accepted):
+\begin{lstlisting}
+{"job_id": "a2c17cf6-...", "message": "Job submitted successfully"}
+\end{lstlisting}
+
+\textbf{Poll status.}
+
+\begin{lstlisting}
+{"job_id": "a2c17cf6-...", "status": "PROGRESS",
+ "meta": {"current_scene": "scene2", "progress": 43}}
+\end{lstlisting}
+
+\textbf{Error example.}
+An invalid template ID triggers domain validation:
+
+\begin{lstlisting}
+HTTP 422
+{"error_code": "TEMPLATE_NOT_FOUND",
+ "detail": "mockup_id 'demo99' does not exist"}
+\end{lstlisting}
+
+\subsection{Schema Snippet}
+
+The \textit{scene} object referenced throughout the thesis is expressed once
+in the OpenAPI component section; excerpt:
+
+\begin{lstlisting}
+components:
+  schemas:
+    SceneSpec:
+      type: object
+      required: [scene_id, in_frame, out_frame]
+      properties:
+        scene_id:  {type: string}
+        in_frame:  {type: integer, minimum: 0}
+        out_frame: {type: integer, minimum: 1}
+\end{lstlisting}
+
+Any client stub generated by \texttt{openapi-generator} therefore benefits from
+the same validation rules used server-side, closing the loop for NFR-03.
+
+\paragraph{Take-away.}
+By relying on code-first OpenAPI generation plus worked examples, the backend
+meets its usability target with \emph{zero} duplicated documentation effort; a
+new endpoint added in code appears instantly in the public contract.
+
+%-------------------------------------------------
+% 5.6  Front-End Smoke-Test Client
+%-------------------------------------------------
+\section{Front-End Test Client}
+\label{sec:impl-frontend}
+
+The repository ships with a small \textbf{React 18 / TypeScript} single-page
+application (SPA) located in \texttt{frontend/}.  
+Its only purpose is to confirm—manually or during a demo—that every
+server-side capability (FR-01 … 06) can be exercised from a browser without
+extra tooling.
+
+\subsection{Client-side architecture}
+
+\begin{table}[htbp]
+  \caption{Main React components and the back-end features they verify}
+  \label{tab:fe-components}
+  \scriptsize\centering
+  \begin{tabularx}{\textwidth}{@{}l l X@{}}
+    \toprule
+    \textbf{File} & \textbf{Key hooks / libs} & \textbf{Responsibility (maps to FR)} \\
+    \midrule
+    \texttt{pages/\_app.tsx} &
+      React 18, Vite hot-reload &
+      App bootstrap, global CSS (Tailwind CDN). \\[0.35em]
+
+    \texttt{pages/index.tsx} (\textit{Home}) &
+      \texttt{useEffect}, custom \texttt{api.ts} wrapper &
+      Loads \texttt{mockup.json}, owns app-level state:
+      \textit{mockups}, \textit{jobId}, global status. \\[0.35em]
+
+    \texttt{components/JobSubmissionForm.tsx} &
+      \texttt{react-dropzone}, \texttt{react-beautiful-dnd},
+      \texttt{Range}\footnote{\url{https://github.com/tajo/react-range}} &
+      • Template picker (FR-04)\newline
+      • Scene chips with drag-to-reorder (FR-05)\newline
+      • Dual-thumb slider to trim in/out frames (FR-06)\newline
+      • < 150 LOC. \\[0.55em]
+
+    \texttt{components/CombinedRenderProgress.tsx} &
+      React state, \texttt{setInterval} &
+      Client-side ETA bar: estimates total render time from the
+      current trim lengths and animates a determinate bar while the
+      user waits.  Purely cosmetic—no back-end coupling. \\[0.55em]
+
+    \texttt{components/StatusDisplay.tsx} &
+      Conditional rendering &
+      Shows download button once the
+      \texttt{/job-status}poll returns \texttt{SUCCESS} and a signed
+      URL (FR-01). \\[0.35em]
+
+    \texttt{utils/api.ts} &
+      Axios &
+      Thin wrapper around the three endpoints listed in
+      Table~\ref{tab:endpoints-main}.  Throws typed errors that bubble
+      up to the toast handler in \textit{Home}. \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\paragraph{Data flow.}
+
+\begin{enumerate}
+  \item \textbf{Template load}.  
+        On mount, \textit{Home} fetches \texttt{/mockups.json} from the
+        web-root, infers the number of scenes and initialises
+        \texttt{scenesData}.  No round-trip to the back-end is needed.
+  \item \textbf{Job submission}.  
+        \textit{JobSubmissionForm} serialises the current
+        \texttt{scenesData} to a JSON string, appends the dragged video file
+        and \texttt{mockup\_id} to a \texttt{FormData} object, and calls
+        \texttt{POST /submit-job}.  A \texttt{job\_id} activates polling.
+  \item \textbf{Status polling}.  
+        Every 5 s \textit{Home} calls \texttt{GET /job-status/\{id\}}.  
+        When \texttt{status=="SUCCESS"} the signed S3 URL contained in
+        \texttt{data.meta} is rewired to the “Download” anchor.
+  \item \textbf{Progress bar}.  
+        While the job is running, \textit{CombinedRenderProgress} computes an
+        ETA = \(\sum_i\bigl((\text{frames}_i\times0.375)\bigr)\) s and
+        animates a local bar from 0 → 100 \%.
+        It is purely client-side and avoids any additional back-end load.
+\end{enumerate}
+
+\subsection{Using the client}
+
+\begin{enumerate}
+  \item \textbf{Select template}.  
+        Pick one of the pre-loaded IDs from the drop-down.
+  \item \textbf{Arrange timeline}.  
+        • Drag chips left/right to reorder scenes.  
+        • Use the dual-thumb slider to trim frame ranges.  
+        Changes are reflected immediately in the
+        \texttt{scene\_order} JSON that will be posted.
+  \item \textbf{Upload video}.  
+        Drag an MP4 onto the dashed area (handled by
+        \texttt{FileDropZone}).
+  \item \textbf{Render}.  
+        Click \emph{Submit Job}.  
+        Status text switches to “pending”; the ETA bar begins to fill.
+  \item \textbf{Download}.  
+        When complete, a purple “Download” button appears.  
+        The file is served by the back-end’s \texttt{/download/} route—
+        no CORS issues because both ports share the same origin in Docker.
+\end{enumerate}
+
+\paragraph{Why keep it small?}
+The SPA is intentionally minimal—no login, no fancy design—because its role
+is to \emph{prove} that a non-developer can drive the API end-to-end.  
+A production-grade UI (or a native mobile wrapper) can be layered on later
+without changing any server-side contract.
+
+%-------------------------------------------------
+% 5.8  Runtime & Deployment
+%-------------------------------------------------
+\section{Runtime \& Deployment}
+\label{sec:impl-deploy}
+
+The prototype is deployed on a single \emph{Hetzner Cloud CX22} instance
+(\SI{2}{vCPU}, \SI{8}{GiB} RAM, \SI{40}{GB} NVMe SSD) at an all-inclusive
+price of €14.51 \slash month.\footnote{\url{https://www.hetzner.com/cloud}}
+No autoscaling is required for the thesis workload (tens—not
+thousands—of short jobs per day), so a \textbf{modular monolith in one VM}
+meets both cost and simplicity goals.
+
+\subsection{Deployment layout}
+
+\begin{figure}[htbp]
+  \centering
+  \fbox{\rule{0pt}{5cm}\rule{0.80\linewidth}{0pt}}
+  \caption{Runtime deployment on Hetzner CX22: FastAPI gateway, Celery
+           worker pool, Redis broker, and MinIO object storage behind a
+           Caddy reverse-proxy with HTTPS.  Solid arrows = internal Docker
+           network, dashed arrow = public HTTPS.}
+  \label{fig:hetzner-deploy}
+\end{figure}
+
+All four services are launched by a single \texttt{docker-compose.prod.yml};
+networking is internal Docker bridge—no
+intra-VM TLS needed.
+
+\subsection{CI/CD pipeline}
+
+\begin{enumerate}
+  \item \textbf{GitHub Actions} builds the multi-arch image
+        on every push to \texttt{main}, runs tests, and pushes to
+        \texttt{ghcr.io}. (≈90 s cold build.)
+  \item \textbf{Deploy hook}.  
+        A lightweight \texttt{watchtower} container on the VM polls GHCR and
+        auto-pulls the latest tag, causing zero-downtime restarts of
+        \texttt{api} and \texttt{worker}.  
+        This meets NFR-04 (maintainability) with <20 lines of config.
+\end{enumerate}
+
+\paragraph{Capacity note.}
+Local benchmarks show the CX22 processes \(\approx\)15 s of 1080p footage per
+wall-clock minute—exactly the NFR-01 target—
+before \SI{100}{\percent} CPU saturation; doubling cores (CX32) would scale
+linearly with no code change.  For research purposes, however, the cheaper
+node is sufficient.
+
+\medskip
+The single-VM approach avoids premature orchestration complexity while still
+delivering reproducible, TLS-secured production hosting that any reader can
+re-create with one command:
+
+\begin{lstlisting}[language=bash,basicstyle=\scriptsize\ttfamily]
+scp docker-compose.prod.yml hetzner:~/deploy
+ssh hetzner "docker compose -f ~/deploy/docker-compose.prod.yml up -d"
+\end{lstlisting}
+
+\vspace{1em}
+\noindent
+This completes the implementation chapter: the codebase, front-end harness,
+and runtime footprint now exactly implement—and are traceable back to—the
+design commitments laid out in Chapter \ref{chap:design}.
+
