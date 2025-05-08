@@ -1,0 +1,69 @@
+{
+  "info": {
+    "name": "MVP Test Suite",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "url": "http://localhost:8000/health",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "Submit Job",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/submit-job",
+        "header": [
+          {
+            "key": "X-API-Key",
+            "value": "{{api_key}}"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "tests/assets/screen-preview.mov"
+            },
+            {
+              "key": "mockup_id",
+              "value": "mockup1",
+              "type": "text"
+            },
+            {
+              "key": "scene_order",
+              "value": "{\"scenes\": [{\"id\": \"scene1\", \"start\": 0, \"duration\": 5}]}",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Job Status",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/job-status/{{job_id}}",
+        "header": []
+      },
+      "response": []
+    },
+    {
+      "name": "Download Result",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/download/{{filename}}",
+        "header": []
+      },
+      "response": []
+    }
+  ]
+} 

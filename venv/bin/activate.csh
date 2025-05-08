@@ -9,7 +9,7 @@ alias deactivate 'test $?_OLD_VIRTUAL_PATH != 0 && setenv PATH "$_OLD_VIRTUAL_PA
 # Unset irrelevant variables.
 deactivate nondestructive
 
-setenv VIRTUAL_ENV '/Users/krys/Library/CloudStorage/GoogleDrive-krystof.jezek@gmail.com/My Drive/Skola/BP/jezekkr2-bp-implementation/venv'
+setenv VIRTUAL_ENV /Users/krys/Dropbox/Skola/SIT/BP/jezekkr2-bp-implementation/video-process-backend/venv
 
 set _OLD_VIRTUAL_PATH="$PATH"
 setenv PATH "$VIRTUAL_ENV/"bin":$PATH"

@@ -29,6 +29,9 @@ dev = [
     "httpx>=0.24.0"
 ]
 
+[tool.setuptools]
+packages = ["app"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py311"

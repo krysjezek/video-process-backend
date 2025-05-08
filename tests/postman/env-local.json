@@ -1,0 +1,18 @@
+{
+  "id": "local-env",
+  "name": "Local Environment",
+  "values": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000/api",
+      "type": "default",
+      "enabled": true
+    },
+    {
+      "key": "api_key",
+      "value": "012345678",
+      "type": "default",
+      "enabled": true
+    }
+  ]
+} 

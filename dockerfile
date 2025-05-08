@@ -11,14 +11,11 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files
-COPY pyproject.toml ./
+# Copy the entire project first
+COPY . .
 
 # Install Python dependencies including dev dependencies
 RUN pip install --no-cache-dir -e ".[dev]"
-
-# Copy application code
-COPY . .
 
 # Expose port 8000 for the FastAPI app
 EXPOSE 8000

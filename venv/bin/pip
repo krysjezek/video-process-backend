@@ -1,6 +1,4 @@
-#!/bin/sh
-'''exec' "/Users/krys/Library/CloudStorage/GoogleDrive-krystof.jezek@gmail.com/My Drive/Skola/BP/jezekkr2-bp-implementation/venv/bin/python" "$0" "$@"
-' '''
+#!/Users/krys/Dropbox/Skola/SIT/BP/jezekkr2-bp-implementation/video-process-backend/venv/bin/python3.13
 # -*- coding: utf-8 -*-
 import re
 import sys
