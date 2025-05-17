@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import json
 from app.config.logging import get_logger
+from .blur_effect import gauss_blur_effect
 
 # Set up a logger for this module.
 logger = get_logger(component="perspective_transformations")
@@ -59,11 +60,20 @@ def load_corner_pin_data(filepath):
         logger.error("Failed to load corner pin data", filepath=filepath, error=str(e))
         raise
 
-def corner_pin_effect(frame, t, use_mask, context):
+def corner_pin_effect(frame, t, use_mask, context, blur_enabled=False, blur_sigma=1.5, blur_opacity=0.3):
     """
     Applies a corner-pin transformation on the user layer and composites it
     over the current frame. This is the only place where the global user video offset
     (from context["user_offset"]) is applied to select the correct frame from user_clip.
+    
+    Args:
+        frame: Current frame
+        t: Current time
+        use_mask: Whether to use the mask clip
+        context: Context dictionary containing clips and data
+        blur_enabled: Whether to apply blur effect
+        blur_sigma: Sigma value for Gaussian blur
+        blur_opacity: Opacity of the blurred version (0.0 to 1.0)
     """
     try:
         fps = context["fps"]
@@ -136,13 +146,55 @@ def corner_pin_effect(frame, t, use_mask, context):
                     matte_mask_3 = np.ones_like(corner_mask_norm)
                 
                 final_mask = corner_mask_norm * matte_mask_3
-                composite = (warped.astype(np.float32) * final_mask +
-                            frame.astype(np.float32) * (1 - final_mask)).astype(np.uint8)
+                
+                # First apply the mask to get the masked content
+                masked_content = (warped.astype(np.float32) * final_mask).astype(np.uint8)
+                
+                if blur_enabled:
+                    # Create a blurred version of the masked content
+                    blurred_content = gauss_blur_effect(masked_content, t, context, sigma=blur_sigma)
+                    
+                    # Create a glow layer by blending the blurred content with the original
+                    glow_layer = cv2.addWeighted(masked_content, 1 - blur_opacity, blurred_content, blur_opacity, 0)
+                    
+                    # Composite the glow layer behind the original content
+                    # First, composite the glow onto the background
+                    composite = (glow_layer.astype(np.float32) +
+                                frame.astype(np.float32) * (1 - final_mask)).astype(np.uint8)
+                    
+                    # Then, composite the original sharp content on top
+                    composite = (masked_content.astype(np.float32) * final_mask +
+                                composite.astype(np.float32) * (1 - final_mask)).astype(np.uint8)
+                else:
+                    # Just composite the original content
+                    composite = (masked_content.astype(np.float32) +
+                                frame.astype(np.float32) * (1 - final_mask)).astype(np.uint8)
             else:
                 user_mask = np.any(warped != 0, axis=2).astype(np.uint8)
                 user_mask_3 = cv2.merge([user_mask, user_mask, user_mask]).astype(np.float32)
-                composite = (warped.astype(np.float32) * user_mask_3 +
-                            frame.astype(np.float32) * (1 - user_mask_3)).astype(np.uint8)
+                
+                # First apply the mask to get the masked content
+                masked_content = (warped.astype(np.float32) * user_mask_3).astype(np.uint8)
+                
+                if blur_enabled:
+                    # Create a blurred version of the masked content
+                    blurred_content = gauss_blur_effect(masked_content, t, context, sigma=blur_sigma)
+                    
+                    # Create a glow layer by blending the blurred content with the original
+                    glow_layer = cv2.addWeighted(masked_content, 1 - blur_opacity, blurred_content, blur_opacity, 0)
+                    
+                    # Composite the glow layer behind the original content
+                    # First, composite the glow onto the background
+                    composite = (glow_layer.astype(np.float32) +
+                                frame.astype(np.float32) * (1 - user_mask_3)).astype(np.uint8)
+                    
+                    # Then, composite the original sharp content on top
+                    composite = (masked_content.astype(np.float32) * user_mask_3 +
+                                composite.astype(np.float32) * (1 - user_mask_3)).astype(np.uint8)
+                else:
+                    # Just composite the original content
+                    composite = (masked_content.astype(np.float32) +
+                                frame.astype(np.float32) * (1 - user_mask_3)).astype(np.uint8)
             
             return composite
         else:
