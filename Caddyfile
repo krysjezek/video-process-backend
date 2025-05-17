@@ -3,19 +3,37 @@
     admin off
 }
 
-################################################################################
-# MAIN SITE  ─ https + automatic HTTP→HTTPS redir handled by Caddy itself
-################################################################################
+# Redirect HTTP to HTTPS
+:80 {
+    redir https://{host}{uri} permanent
+}
+
+# Main domain
 :443 {
     tls {
         protocols tls1.2 tls1.3
     }
 
-    handle /api/*   { reverse_proxy api:8000 }
-    handle /docs    { reverse_proxy api:8000 }
-    handle /redoc   { reverse_proxy api:8000 }
-    handle /minio/* { reverse_proxy minio:9001 }
+    # API endpoint
+    handle /api/* {
+        reverse_proxy api:8000
+    }
 
+    # Swagger UI
+    handle /docs {
+        reverse_proxy api:8000
+    }
+
+    handle /redoc {
+        reverse_proxy api:8000
+    }
+
+    # MinIO console
+    handle /minio/* {
+        reverse_proxy minio:9001
+    }
+
+    # Serve static files
     handle {
         file_server {
             root /app/assets
@@ -23,30 +41,19 @@
     }
 }
 
-################################################################################
-# FASTAPI OVER THE BARE IP (OPTIONAL)
-################################################################################
+# API service
 23.88.121.164 {
     reverse_proxy api:8000 {
         header_up X-Real-IP {remote_host}
     }
 }
 
-################################################################################
-# MINIO ***HTTPS*** FRONT-DOOR  → fixes mixed-content
-################################################################################
-files.23-88-121-164.nip.io {
-    reverse_proxy http://minio:9000
-    header_up Host {http.request.host}
+# MinIO console
+minio-console.23.88.121.164 {
+    reverse_proxy minio:9001
 }
 
-# Optional: redirect the plain-HTTP version to HTTPS
-http://files.23-88-121-164.nip.io {
-    redir https://{host}{uri}
-}
-
-################################################################################
-# (Optional helpers still available over HTTP)
-################################################################################
-minio-console.23.88.121.164 { reverse_proxy minio:9001 }
-minio-api.23.88.121.164     { reverse_proxy minio:9000 }
+# MinIO API
+minio-api.23.88.121.164 {
+    reverse_proxy minio:9000
+} 
