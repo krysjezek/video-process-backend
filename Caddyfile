@@ -55,5 +55,8 @@ minio-console.23.88.121.164 {
 
 # MinIO API
 minio-api.23.88.121.164 {
-    reverse_proxy minio:9000
+    reverse_proxy minio:9000 {
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Proto https
+    }
 } 

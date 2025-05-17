@@ -29,7 +29,7 @@ class MinioStorage:
             access_key=os.getenv("MINIO_ACCESS_KEY"),
             secret_key=os.getenv("MINIO_SECRET_KEY"),
             region="us-east-1",
-            secure=False,
+            secure=True,  # Enable HTTPS
         )
 
     def _ensure_bucket(self):
