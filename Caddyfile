@@ -1,38 +1,21 @@
 {
-    email your-email@example.com     # change to your real e-mail
+    email your-email@example.com
     admin off
 }
 
-# ─── Redirect plain HTTP to HTTPS ───────────────────────────────────────────────
-:80 {
-    redir https://{host}{uri} permanent
-}
-
-# ─── Main site on the public domain (Vercel front-end, FastAPI, static files) ───
+################################################################################
+# MAIN SITE  ─ https + automatic HTTP→HTTPS redir handled by Caddy itself
+################################################################################
 :443 {
     tls {
         protocols tls1.2 tls1.3
     }
 
-    # FastAPI back-end
-    handle /api/* {
-        reverse_proxy api:8000
-    }
+    handle /api/*   { reverse_proxy api:8000 }
+    handle /docs    { reverse_proxy api:8000 }
+    handle /redoc   { reverse_proxy api:8000 }
+    handle /minio/* { reverse_proxy minio:9001 }
 
-    # Swagger / Redoc
-    handle /docs {
-        reverse_proxy api:8000
-    }
-    handle /redoc {
-        reverse_proxy api:8000
-    }
-
-    # MinIO web console (optional)
-    handle /minio/* {
-        reverse_proxy minio:9001
-    }
-
-    # Static files bundled with the API container
     handle {
         file_server {
             root /app/assets
@@ -40,26 +23,30 @@
     }
 }
 
-# ─── Direct IP vhost for the API (optional) ─────────────────────────────────────
+################################################################################
+# FASTAPI OVER THE BARE IP (OPTIONAL)
+################################################################################
 23.88.121.164 {
     reverse_proxy api:8000 {
         header_up X-Real-IP {remote_host}
     }
 }
 
-# ─── Optional direct hosts for MinIO console & API (plain HTTP) ────────────────
-minio-console.23.88.121.164 {
-    reverse_proxy minio:9001
-}
-minio-api.23.88.121.164 {
-    reverse_proxy minio:9000
-}
-
-# ─── NEW: HTTPS front door for MinIO itself (fixes mixed-content) ───────────────
-# Any *.nip.io (or *.sslip.io) name that embeds the IP automatically resolves
-# to that IP, so you don’t have to touch DNS.  Caddy pulls a free
-# Let’s Encrypt cert and terminates TLS.
+################################################################################
+# MINIO ***HTTPS*** FRONT-DOOR  → fixes mixed-content
+################################################################################
 files.23-88-121-164.nip.io {
     reverse_proxy http://minio:9000
-    header_up Host {http.request.host}   # keeps MinIO happy
+    header_up Host {http.request.host}
 }
+
+# Optional: redirect the plain-HTTP version to HTTPS
+http://files.23-88-121-164.nip.io {
+    redir https://{host}{uri}
+}
+
+################################################################################
+# (Optional helpers still available over HTTP)
+################################################################################
+minio-console.23.88.121.164 { reverse_proxy minio:9001 }
+minio-api.23.88.121.164     { reverse_proxy minio:9000 }
