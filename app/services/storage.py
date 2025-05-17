@@ -21,7 +21,7 @@ class MinioStorage:
         self._ensure_bucket()
 
         # Public client (only for presign, never hits the wire)
-        public_endpoint = "23.88.121.164:9000"  # Hardcoded for now to ensure it works
+        public_endpoint = "minio-api.video-process.23.88.121.164.nip.io:443"  # Using nip.io domain
         logger.info(f"Using MinIO public endpoint: {public_endpoint}")
         
         self._public = Minio(
