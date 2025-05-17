@@ -21,11 +21,14 @@ class MinioStorage:
         self._ensure_bucket()
 
         # Public client (only for presign, never hits the wire)
+        public_endpoint = "23.88.121.164:9000"  # Hardcoded for now to ensure it works
+        logger.info(f"Using MinIO public endpoint: {public_endpoint}")
+        
         self._public = Minio(
-            os.getenv("MINIO_PUBLIC_ENDPOINT", "localhost:9000"),
+            public_endpoint,
             access_key=os.getenv("MINIO_ACCESS_KEY"),
             secret_key=os.getenv("MINIO_SECRET_KEY"),
-            region="us-east-1",       # <- crucial
+            region="us-east-1",
             secure=False,
         )
 
@@ -48,9 +51,11 @@ class MinioStorage:
     def get_presigned_url(self, object_name: str, expires: int = 3600) -> str:
         try:
             expires_td = timedelta(seconds=max(1, min(expires, 604800)))
-            return self._public.presigned_get_object(
+            url = self._public.presigned_get_object(
                 self.bucket, object_name, expires_td
             )
+            logger.info(f"Generated presigned URL: {url}")
+            return url
         except Exception as e:
             logger.error("Failed to generate presigned URL", error=str(e))
             raise StorageError(f"Failed to generate presigned URL: {str(e)}")
