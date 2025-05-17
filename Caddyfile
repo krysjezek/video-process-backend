@@ -1,39 +1,38 @@
 {
-    email your-email@example.com
+    email your-email@example.com     # change to your real e-mail
     admin off
 }
 
-# Redirect HTTP to HTTPS
+# ─── Redirect plain HTTP to HTTPS ───────────────────────────────────────────────
 :80 {
     redir https://{host}{uri} permanent
 }
 
-# Main domain
+# ─── Main site on the public domain (Vercel front-end, FastAPI, static files) ───
 :443 {
     tls {
         protocols tls1.2 tls1.3
     }
 
-    # API endpoint
+    # FastAPI back-end
     handle /api/* {
         reverse_proxy api:8000
     }
 
-    # Swagger UI
+    # Swagger / Redoc
     handle /docs {
         reverse_proxy api:8000
     }
-
     handle /redoc {
         reverse_proxy api:8000
     }
 
-    # MinIO console
+    # MinIO web console (optional)
     handle /minio/* {
         reverse_proxy minio:9001
     }
 
-    # Serve static files
+    # Static files bundled with the API container
     handle {
         file_server {
             root /app/assets
@@ -41,22 +40,26 @@
     }
 }
 
-# API service
-api.video-process.23.88.121.164.nip.io {
+# ─── Direct IP vhost for the API (optional) ─────────────────────────────────────
+23.88.121.164 {
     reverse_proxy api:8000 {
         header_up X-Real-IP {remote_host}
     }
 }
 
-# MinIO console
-minio-console.video-process.23.88.121.164.nip.io {
+# ─── Optional direct hosts for MinIO console & API (plain HTTP) ────────────────
+minio-console.23.88.121.164 {
     reverse_proxy minio:9001
 }
+minio-api.23.88.121.164 {
+    reverse_proxy minio:9000
+}
 
-# MinIO API
-minio-api.video-process.23.88.121.164.nip.io {
-    reverse_proxy minio:9000 {
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-Proto https
-    }
-} 
+# ─── NEW: HTTPS front door for MinIO itself (fixes mixed-content) ───────────────
+# Any *.nip.io (or *.sslip.io) name that embeds the IP automatically resolves
+# to that IP, so you don’t have to touch DNS.  Caddy pulls a free
+# Let’s Encrypt cert and terminates TLS.
+files.23-88-121-164.nip.io {
+    reverse_proxy http://minio:9000
+    header_up Host {http.request.host}   # keeps MinIO happy
+}
