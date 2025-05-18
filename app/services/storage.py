@@ -21,7 +21,7 @@ class MinioStorage:
         self._ensure_bucket()
 
         # Public client (only for presign, never hits the wire)
-        public_endpoint = "23.88.121.164:9000"  # Hardcoded for now to ensure it works
+        public_endpoint = "23.88.121.164:9000"  # Using direct IP
         logger.info(f"Using MinIO public endpoint: {public_endpoint}")
         
         self._public = Minio(
@@ -29,7 +29,7 @@ class MinioStorage:
             access_key=os.getenv("MINIO_ACCESS_KEY"),
             secret_key=os.getenv("MINIO_SECRET_KEY"),
             region="us-east-1",
-            secure=False,
+            secure=True,  # Enable HTTPS
         )
 
     def _ensure_bucket(self):
